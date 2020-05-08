@@ -15,7 +15,7 @@ import myNotebook as nb
 import companion
 import plug
 
-API_URL = 'http://localhost:1337/upload'
+API_URL = 'https://sfr.straylight.systems/upload'
 API_HEADERS = {'Content-type': 'application/json'}
 
 _TIMEOUT = 20
