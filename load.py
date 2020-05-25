@@ -564,6 +564,36 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                 ('opponentName', entry['Victim']),
                     ]))
 
+    elif entry['event'] == 'FactionKillBond':
+        add_event('addCommanderFactionKillBond', entry['timestamp'],
+                    OrderedDict([('starsystemName', system),
+                                ('reward', entry.get('Reward')),
+                                ('awardingFaction', entry.get('AwardingFaction')),
+                                ('victimFaction', entry.get('VictimFaction')),
+                    ]))
+
+    elif entry['event'] == 'CapShipBond':
+        add_event('addCommanderFactionKillBond', entry['timestamp'],
+                    OrderedDict([('starsystemName', system),
+                                ('reward', entry.get('Reward')),
+                                ('awardingFaction', entry.get('AwardingFaction')),
+                                ('victimFaction', entry.get('VictimFaction')),
+                    ]))
+
+    elif entry['event'] == 'ShipTargeted' and entry.get('ScanStage') == 3:
+        add_event('addCommanderShipScan', entry['timestamp'],
+                    OrderedDict([('starsystemName', system),
+                                ('nameRaw', entry.get('PilotName')),
+                                ('name', entry.get('PilotName_Localised')),
+                                ('rank', entry.get('PilotRank')),
+                                ('shipRaw', entry.get('Ship')),
+                                ('ship', entry.get('Ship_Localised')),
+                                ('power', entry.get('Power')),
+                                ('status', entry.get('LegalStatus')),
+                                ('squadronId', entry.get('SquadronID')),
+                                ('bounty', entry.get('Bounty')),
+                    ]))
+
     # Community Goals
     if entry['event'] == 'CommunityGoal':
         this.events = [x for x in this.events if x['eventName'] not in ['setCommunityGoal', 'setCommanderCommunityGoalProgress']]	# Remove any unsent
@@ -745,6 +775,7 @@ def call(callback=None):
         ('header', OrderedDict([
             ('commanderName', this.cmdr.encode('utf-8')),
             ('commanderFrontierID', this.FID),
+            ('version', '1.1.0'),
         ])),
         ('events', list(this.events)),	# shallow copy
     ])
