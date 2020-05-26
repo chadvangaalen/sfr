@@ -562,20 +562,12 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                 ('opponentName', entry['Victim']),
                     ]))
 
-    elif entry['event'] == 'FactionKillBond':
+    elif entry['event'] == 'RedeemVoucher':
         add_event('addCommanderFactionKillBond', entry['timestamp'],
                     OrderedDict([('starsystemName', system),
-                                ('reward', entry.get('Reward')),
-                                ('awardingFaction', entry.get('AwardingFaction')),
-                                ('victimFaction', entry.get('VictimFaction')),
-                    ]))
-
-    elif entry['event'] == 'CapShipBond':
-        add_event('addCommanderFactionKillBond', entry['timestamp'],
-                    OrderedDict([('starsystemName', system),
-                                ('reward', entry.get('Reward')),
-                                ('awardingFaction', entry.get('AwardingFaction')),
-                                ('victimFaction', entry.get('VictimFaction')),
+                                ('type', entry.get('Type')),
+                                ('faction', entry.get('Faction')),
+                                ('amount', entry.get('Amount')),
                     ]))
 
     elif entry['event'] == 'ShipTargeted' and entry.get('ScanStage') == 3:
