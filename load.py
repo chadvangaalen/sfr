@@ -295,6 +295,141 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                     ('minorfactionReputation', f['MyReputation']),
                                 ]) for f in entry['Factions']
                             ])
+                
+        # Missions
+        if entry['event'] == 'MissionAccepted':
+            data = OrderedDict([
+                ('missionName', entry['Name']),
+                ('missionGameID', entry['MissionID']),
+                ('influenceGain', entry['Influence']),
+                ('reputationGain', entry['Reputation']),
+                ('starsystemNameOrigin', system),
+                ('stationNameOrigin', station),
+                ('minorfactionNameOrigin', entry['Faction']),
+            ])
+            # optional mission-specific properties
+            for (iprop, prop) in [
+                    ('missionExpiry', 'Expiry'),	# Listed as optional in the docs, but always seems to be present
+                    ('starsystemNameTarget', 'DestinationSystem'),
+                    ('stationNameTarget', 'DestinationStation'),
+                    ('minorfactionNameTarget', 'TargetFaction'),
+                    ('commodityName', 'Commodity'),
+                    ('commodityCount', 'Count'),
+                    ('targetName', 'Target'),
+                    ('targetType', 'TargetType'),
+                    ('killCount', 'KillCount'),
+                    ('passengerType', 'PassengerType'),
+                    ('passengerCount', 'PassengerCount'),
+                    ('passengerIsVIP', 'PassengerVIPs'),
+                    ('passengerIsWanted', 'PassengerWanted'),
+            ]:
+                if prop in entry:
+                    data[iprop] = entry[prop]
+            add_event('addCommanderMission', entry['timestamp'], data)
+
+        elif entry['event'] == 'MissionAbandoned':
+            add_event('setCommanderMissionAbandoned', entry['timestamp'], { 'missionGameID': entry['MissionID'] })
+
+        elif entry['event'] == 'MissionCompleted':
+            for x in entry.get('PermitsAwarded', []):
+                add_event('addCommanderPermit', entry['timestamp'], { 'starsystemName': x })
+
+            data = OrderedDict([ ('missionGameID', entry['MissionID']) ])
+            if 'Donation' in entry:
+                data['donationCredits'] = entry['Donation']
+            if 'Reward' in entry:
+                data['rewardCredits'] = entry['Reward']
+            if 'PermitsAwarded' in entry:
+                data['rewardPermits'] = [{ 'starsystemName': x } for x in entry['PermitsAwarded']]
+            if 'CommodityReward' in entry:
+                data['rewardCommodities'] = [{ 'itemName': x['Name'], 'itemCount': x['Count'] } for x in entry['CommodityReward']]
+            if 'MaterialsReward' in entry:
+                data['rewardMaterials'] = [{ 'itemName': x['Name'], 'itemCount': x['Count'] } for x in entry['MaterialsReward']]
+            factioneffects = []
+            for faction in entry.get('FactionEffects', []):
+                effect = OrderedDict([ ('minorfactionName', faction['Faction']) ])
+                for influence in faction.get('Influence', []):
+                    if 'Influence' in influence:
+                        effect['influenceGain'] = len(effect.get('influenceGain', '')) > len(influence['Influence']) and effect['influenceGain'] or influence['Influence']	# pick highest
+                if 'Reputation' in faction:
+                    effect['reputationGain'] = faction['Reputation']
+                factioneffects.append(effect)
+            if factioneffects:
+                data['minorfactionEffects'] = factioneffects
+            add_event('setCommanderMissionCompleted', entry['timestamp'], data)
+
+        elif entry['event'] == 'MissionFailed':
+            add_event('setCommanderMissionFailed', entry['timestamp'], { 'missionGameID': entry['MissionID'] })
+
+        # Combat
+        if entry['event'] == 'Died':
+            data = OrderedDict([ ('starsystemName', system) ])
+            if 'Killers' in entry:
+                data['wingOpponentNames'] = [x['Name'] for x in entry['Killers']]
+            elif 'KillerName' in entry:
+                data['opponentName'] = entry['KillerName']
+            add_event('addCommanderCombatDeath', entry['timestamp'], data)
+
+        elif entry['event'] == 'Interdicted':
+            data = OrderedDict([('starsystemName', system),
+                                ('isPlayer', entry['IsPlayer']),
+                                ('isSubmit', entry['Submitted']),
+            ])
+            if 'Interdictor' in entry:
+                data['opponentName'] = entry['Interdictor']
+            elif 'Faction' in entry:
+                data['opponentName'] = entry['Faction']
+            elif 'Power' in entry:
+                data['opponentName'] = entry['Power']
+            add_event('addCommanderCombatInterdicted', entry['timestamp'], data)
+
+        elif entry['event'] == 'Interdiction':
+            data = OrderedDict([('starsystemName', system),
+                                ('isPlayer', entry['IsPlayer']),
+                                ('isSuccess', entry['Success']),
+            ])
+            if 'Interdicted' in entry:
+                data['opponentName'] = entry['Interdicted']
+            elif 'Faction' in entry:
+                data['opponentName'] = entry['Faction']
+            elif 'Power' in entry:
+                data['opponentName'] = entry['Power']
+            add_event('addCommanderCombatInterdiction', entry['timestamp'], data)
+
+        elif entry['event'] == 'EscapeInterdiction':
+            add_event('addCommanderCombatInterdictionEscape', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('opponentName', entry['Interdictor']),
+                                    ('isPlayer', entry['IsPlayer']),
+                        ]))
+
+        elif entry['event'] == 'PVPKill':
+            add_event('addCommanderCombatKill', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('opponentName', entry['Victim']),
+                        ]))
+
+        elif entry['event'] == 'RedeemVoucher':
+            add_event('addCommanderFactionKillBond', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('type', entry.get('Type')),
+                                    ('faction', entry.get('Faction')),
+                                    ('amount', entry.get('Amount')),
+                        ]))
+
+        elif entry['event'] == 'ShipTargeted' and entry.get('ScanStage') == 3:
+            add_event('addCommanderShipScan', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('nameRaw', entry.get('PilotName')),
+                                    ('name', entry.get('PilotName_Localised')),
+                                    ('rank', entry.get('PilotRank')),
+                                    ('shipRaw', entry.get('Ship')),
+                                    ('ship', entry.get('Ship_Localised')),
+                                    ('power', entry.get('Power')),
+                                    ('status', entry.get('LegalStatus')),
+                                    ('squadronId', entry.get('SquadronID')),
+                                    ('bounty', entry.get('Bounty')),
+                        ]))
 
         # Send event(s) to Inara
         if entry['event'] == 'ShutDown' or len(this.events) > old_events:
@@ -448,141 +583,6 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
             this.storedmodules = modules
             this.events = [x for x in this.events if x['eventName'] != 'setCommanderStorageModules']	# Remove any unsent
             add_event('setCommanderStorageModules', entry['timestamp'], this.storedmodules)
-
-    # Missions
-    if entry['event'] == 'MissionAccepted':
-        data = OrderedDict([
-            ('missionName', entry['Name']),
-            ('missionGameID', entry['MissionID']),
-            ('influenceGain', entry['Influence']),
-            ('reputationGain', entry['Reputation']),
-            ('starsystemNameOrigin', system),
-            ('stationNameOrigin', station),
-            ('minorfactionNameOrigin', entry['Faction']),
-        ])
-        # optional mission-specific properties
-        for (iprop, prop) in [
-                ('missionExpiry', 'Expiry'),	# Listed as optional in the docs, but always seems to be present
-                ('starsystemNameTarget', 'DestinationSystem'),
-                ('stationNameTarget', 'DestinationStation'),
-                ('minorfactionNameTarget', 'TargetFaction'),
-                ('commodityName', 'Commodity'),
-                ('commodityCount', 'Count'),
-                ('targetName', 'Target'),
-                ('targetType', 'TargetType'),
-                ('killCount', 'KillCount'),
-                ('passengerType', 'PassengerType'),
-                ('passengerCount', 'PassengerCount'),
-                ('passengerIsVIP', 'PassengerVIPs'),
-                ('passengerIsWanted', 'PassengerWanted'),
-        ]:
-            if prop in entry:
-                data[iprop] = entry[prop]
-        add_event('addCommanderMission', entry['timestamp'], data)
-
-    elif entry['event'] == 'MissionAbandoned':
-        add_event('setCommanderMissionAbandoned', entry['timestamp'], { 'missionGameID': entry['MissionID'] })
-
-    elif entry['event'] == 'MissionCompleted':
-        for x in entry.get('PermitsAwarded', []):
-            add_event('addCommanderPermit', entry['timestamp'], { 'starsystemName': x })
-
-        data = OrderedDict([ ('missionGameID', entry['MissionID']) ])
-        if 'Donation' in entry:
-            data['donationCredits'] = entry['Donation']
-        if 'Reward' in entry:
-            data['rewardCredits'] = entry['Reward']
-        if 'PermitsAwarded' in entry:
-            data['rewardPermits'] = [{ 'starsystemName': x } for x in entry['PermitsAwarded']]
-        if 'CommodityReward' in entry:
-            data['rewardCommodities'] = [{ 'itemName': x['Name'], 'itemCount': x['Count'] } for x in entry['CommodityReward']]
-        if 'MaterialsReward' in entry:
-            data['rewardMaterials'] = [{ 'itemName': x['Name'], 'itemCount': x['Count'] } for x in entry['MaterialsReward']]
-        factioneffects = []
-        for faction in entry.get('FactionEffects', []):
-            effect = OrderedDict([ ('minorfactionName', faction['Faction']) ])
-            for influence in faction.get('Influence', []):
-                if 'Influence' in influence:
-                    effect['influenceGain'] = len(effect.get('influenceGain', '')) > len(influence['Influence']) and effect['influenceGain'] or influence['Influence']	# pick highest
-            if 'Reputation' in faction:
-                effect['reputationGain'] = faction['Reputation']
-            factioneffects.append(effect)
-        if factioneffects:
-            data['minorfactionEffects'] = factioneffects
-        add_event('setCommanderMissionCompleted', entry['timestamp'], data)
-
-    elif entry['event'] == 'MissionFailed':
-        add_event('setCommanderMissionFailed', entry['timestamp'], { 'missionGameID': entry['MissionID'] })
-
-    # Combat
-    if entry['event'] == 'Died':
-        data = OrderedDict([ ('starsystemName', system) ])
-        if 'Killers' in entry:
-            data['wingOpponentNames'] = [x['Name'] for x in entry['Killers']]
-        elif 'KillerName' in entry:
-            data['opponentName'] = entry['KillerName']
-        add_event('addCommanderCombatDeath', entry['timestamp'], data)
-
-    elif entry['event'] == 'Interdicted':
-        data = OrderedDict([('starsystemName', system),
-                            ('isPlayer', entry['IsPlayer']),
-                            ('isSubmit', entry['Submitted']),
-        ])
-        if 'Interdictor' in entry:
-            data['opponentName'] = entry['Interdictor']
-        elif 'Faction' in entry:
-            data['opponentName'] = entry['Faction']
-        elif 'Power' in entry:
-            data['opponentName'] = entry['Power']
-        add_event('addCommanderCombatInterdicted', entry['timestamp'], data)
-
-    elif entry['event'] == 'Interdiction':
-        data = OrderedDict([('starsystemName', system),
-                            ('isPlayer', entry['IsPlayer']),
-                            ('isSuccess', entry['Success']),
-        ])
-        if 'Interdicted' in entry:
-            data['opponentName'] = entry['Interdicted']
-        elif 'Faction' in entry:
-            data['opponentName'] = entry['Faction']
-        elif 'Power' in entry:
-            data['opponentName'] = entry['Power']
-        add_event('addCommanderCombatInterdiction', entry['timestamp'], data)
-
-    elif entry['event'] == 'EscapeInterdiction':
-        add_event('addCommanderCombatInterdictionEscape', entry['timestamp'],
-                    OrderedDict([('starsystemName', system),
-                                ('opponentName', entry['Interdictor']),
-                                ('isPlayer', entry['IsPlayer']),
-                    ]))
-
-    elif entry['event'] == 'PVPKill':
-        add_event('addCommanderCombatKill', entry['timestamp'],
-                    OrderedDict([('starsystemName', system),
-                                ('opponentName', entry['Victim']),
-                    ]))
-
-    elif entry['event'] == 'RedeemVoucher':
-        add_event('addCommanderFactionKillBond', entry['timestamp'],
-                    OrderedDict([('starsystemName', system),
-                                ('type', entry.get('Type')),
-                                ('faction', entry.get('Faction')),
-                                ('amount', entry.get('Amount')),
-                    ]))
-
-    elif entry['event'] == 'ShipTargeted' and entry.get('ScanStage') == 3:
-        add_event('addCommanderShipScan', entry['timestamp'],
-                    OrderedDict([('starsystemName', system),
-                                ('nameRaw', entry.get('PilotName')),
-                                ('name', entry.get('PilotName_Localised')),
-                                ('rank', entry.get('PilotRank')),
-                                ('shipRaw', entry.get('Ship')),
-                                ('ship', entry.get('Ship_Localised')),
-                                ('power', entry.get('Power')),
-                                ('status', entry.get('LegalStatus')),
-                                ('squadronId', entry.get('SquadronID')),
-                                ('bounty', entry.get('Bounty')),
-                    ]))
 
     # Community Goals
     if entry['event'] == 'CommunityGoal':
@@ -765,7 +765,7 @@ def call(callback=None):
         ('header', OrderedDict([
             ('commanderName', this.cmdr.encode('utf-8')),
             ('commanderFrontierID', this.FID),
-            ('version', '1.1.1'),
+            ('version', '1.2.0'),
         ])),
         ('events', list(this.events)),	# shallow copy
     ])
