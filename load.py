@@ -431,6 +431,29 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                     ('bounty', entry.get('Bounty')),
                         ]))
 
+        elif entry['event'] == 'CarrierJumpRequest':
+            add_event('addCarrierJumpRequest', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('carrierId', entry.get('CarrierID')),
+                                    ('system', entry.get('SystemName')),
+                                    ('body', entry.get('Body')),
+                        ]))
+
+        elif entry['event'] == 'CarrierStats':
+            add_event('addCarrierStats', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('carrierId', entry.get('CarrierID')),
+                                    ('callsign', entry.get('Callsign')),
+                                    ('name', entry.get('Name')),
+                                    ('dockingAccess', entry.get('DockingAccess')),
+                                    ('fuelLevel', entry.get('FuelLevel')),
+                                    ('jumpRangeCurr', entry.get('JumpRangeCurr')),
+                                    ('jumpRangeMax', entry.get('JumpRangeMax')),
+                                    ('freeSpaceCurr', entry.get('SpaceUsage').get('FreeSpace')),
+                                    ('freeSpaceMax', entry.get('SpaceUsage').get('TotalCapacity')),
+                                    ('bankBalance', entry.get('Finance').get('CarrierBalance')),
+                        ]))
+
         # Send event(s) to Inara
         if entry['event'] == 'ShutDown' or len(this.events) > old_events:
 
@@ -765,7 +788,7 @@ def call(callback=None):
         ('header', OrderedDict([
             ('commanderName', this.cmdr.encode('utf-8')),
             ('commanderFrontierID', this.FID),
-            ('version', '1.2.0'),
+            ('version', '1.3.0'),
         ])),
         ('events', list(this.events)),	# shallow copy
     ])
