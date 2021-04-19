@@ -453,6 +453,28 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                     ('bankBalance', entry.get('Finance').get('CarrierBalance')),
                         ]))
 
+        elif entry['event'] == 'MarketBuy':
+            add_event('addMarketBuy', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('type', entry.get('Type')),
+                                    ('count', entry.get('Count')),
+                                    ('price', entry.get('BuyPrice')),
+                                    ('total', entry.get('TotalCost')),
+                        ]))
+
+        elif entry['event'] == 'MarketSell':
+            add_event('addMarketSell', entry['timestamp'],
+                        OrderedDict([('starsystemName', system),
+                                    ('type', entry.get('Type')),
+                                    ('count', entry.get('Count')),
+                                    ('price', entry.get('SellPrice')),
+                                    ('total', entry.get('TotalSale')),
+                                    ('average', entry.get('AvgPricePaid')),
+                                    ('illegal', entry.get('IllegalGoods')),
+                                    ('stolen', entry.get('StolenGoods')),
+                                    ('blackmarket', entry.get('BlackMarket')),
+                        ]))
+
         # Send event(s) to Inara
         if entry['event'] == 'ShutDown' or len(this.events) > old_events:
 
