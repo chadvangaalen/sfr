@@ -4,11 +4,11 @@ import requests
 import sys
 import time
 from operator import itemgetter
-from Queue import Queue
+from queue import Queue
 from threading import Thread
 from traceback import print_exc
 
-import Tkinter as tk
+import tkinter as tk
 from ttkHyperlinkLabel import HyperlinkLabel
 import myNotebook as nb
 
@@ -70,14 +70,13 @@ def plugin_app(parent):
     this.status = tk.Label(parent, text="Loading", foreground="yellow")    # Override theme's foreground color
     # later on your event functions can update the contents of these widgets
     this.status["text"] = "Online"
-    this.status["foreground"] = "green"
     return (label, this.status)
 
-def plugin_start():
+def plugin_start3(plugin_dir: str) -> str:
     this.thread = Thread(target = worker, name = 'SFR worker')
     this.thread.daemon = True
     this.thread.start()
-    print "Straylight Flight Recorder online."
+    print("Straylight Flight Recorder online.")
     return 'Straylight Flight Recorder'
 
 def plugin_stop():
@@ -87,7 +86,7 @@ def plugin_stop():
     this.queue.put(None)
     this.thread.join()
     this.thread = None
-    print "Straylight Flight Recorder shutting down."
+    print("Straylight Flight Recorder shutting down.")
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
     # Send any unsent events when switching accounts
@@ -147,14 +146,14 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                 ('rankName', k.lower()),
                                 ('rankValue', v[0]),
                                 ('rankProgress', v[1] / 100.0),
-                            ]) for k,v in state['Rank'].iteritems() if v is not None
+                            ]) for k,v in list(state['Rank'].items()) if v is not None
                         ])
             add_event('setCommanderReputationMajorFaction', entry['timestamp'],
                         [
                             OrderedDict([
                                 ('majorfactionName', k.lower()),
                                 ('majorfactionReputation', v / 100.0),
-                            ]) for k,v in state['Reputation'].iteritems() if v is not None
+                            ]) for k,v in list(state['Reputation'].items()) if v is not None
                         ])
             if state['Engineers']:	# Not populated < 3.3
                 add_event('setCommanderRankEngineer', entry['timestamp'],
@@ -162,7 +161,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
                                 OrderedDict([
                                     ('engineerName', k),
                                     type(v) is tuple and ('rankValue', v[0]) or ('rankStage', v),
-                                ]) for k,v in state['Engineers'].iteritems()
+                                ]) for k,v in list(state['Engineers'].items())
                             ])
 
             # Update location
@@ -194,7 +193,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
         # Promotions
         elif entry['event'] == 'Promotion':
-            for k,v in state['Rank'].iteritems():
+            for k,v in list(state['Rank'].items()):
                 if k in entry:
                     add_event('setCommanderRankPilot', entry['timestamp'],
                                 OrderedDict([
@@ -474,7 +473,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
 
     except Exception as e:
         if __debug__: print_exc()
-        return unicode(e)
+        return str(e)
 
     #
     # Events that don't need to be sent immediately but will be sent on the next mandatory event
@@ -677,14 +676,15 @@ def worker():
                     callback(reply)
                 elif status // 100 != 2:	# 2xx == OK (maybe with warnings)
                     # Log fatal errors
-                    print 'SFR\t%s %s' % (reply['header']['eventStatus'], reply['header'].get('eventStatusText', ''))
-                    print json.dumps(data, indent=2, separators = (',', ': '))
+                    print(('SFR\t%s %s' % (reply['header']['eventStatus'], reply['header'].get('eventStatusText', ''))))
+                    print((json.dumps(data, indent=2, separators = (',', ': '))))
                     plug.show_error(_('Error: SFR {MSG}').format(MSG = reply['header'].get('eventStatusText', status)))
+                    this.status["text"] = "ERROR"
                 else:
                     # Log individual errors and warnings
                     for data_event, reply_event in zip(data['events'], reply['events']):
                         if reply_event['eventStatus'] != 200:
-                            print 'SFR\t%s %s\t%s' % (reply_event['eventStatus'], reply_event.get('eventStatusText', ''), json.dumps(data_event))
+                            print(('SFR\t%s %s\t%s' % (reply_event['eventStatus'], reply_event.get('eventStatusText', ''), json.dumps(data_event))))
                             if reply_event['eventStatus'] // 100 != 2:
                                 plug.show_error(_('Error: SFR {MSG}').format(MSG = '%s, %s' % (data_event['eventName'], reply_event.get('eventStatusText', reply_event['eventStatus']))))
                         if data_event['eventName'] in ['addCommanderTravelDock', 'addCommanderTravelFSDJump', 'setCommanderTravelLocation']:
@@ -703,10 +703,11 @@ def worker():
                 callback(None)
             else:
                 plug.show_error(_("Error: Can't connect to SFR"))
+                this.status["text"] = "ERROR"
 
 def make_loadout(state):
     modules = []
-    for m in state['Modules'].itervalues():
+    for m in list(state['Modules'].values()):
         module = OrderedDict([
             ('slotName', m['Slot']),
             ('itemName', m['Item']),
@@ -786,9 +787,9 @@ def call(callback=None):
 
     data = OrderedDict([
         ('header', OrderedDict([
-            ('commanderName', this.cmdr.encode('utf-8')),
+            ('commanderName', this.cmdr),
             ('commanderFrontierID', this.FID),
-            ('version', '1.3.0'),
+            ('version', '2.0.0'),
         ])),
         ('events', list(this.events)),	# shallow copy
     ])
